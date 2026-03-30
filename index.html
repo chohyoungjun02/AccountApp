@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>나의 계좌 관리 시스템</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; background-color: #f4f7f6; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h2, h3 { color: #2c3e50; text-align: center; }
+        
+        /* 입력창 스타일 */
+        .input-box { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; padding: 15px; border: 1px dashed #3498db; border-radius: 8px; }
+        input { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        
+        /* 버튼 스타일 */
+        button { padding: 10px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #2980b9; }
+        .btn-deposit { background-color: #2ecc71; padding: 5px 10px; margin-left: 5px; }
+        .btn-withdraw { background-color: #e67e22; padding: 5px 10px; margin-left: 5px; }
+		.btn-edit { background-color: #9b59b6; padding: 5px 10px; margin-left: 5px; } /*수정*/
+		.btn-delete { background-color: #e74c3c; padding: 5px 10px; margin-left: 5px; } /*삭제*/
+        /* 목록 아이템 스타일 */
+        .account-item { background: #fff; border: 1px solid #eee; margin-top: 10px; padding: 15px; border-radius: 8px; border-left: 5px solid #3498db; }
+        .balance { color: #e74c3c; font-weight: bold; }
+        .action-area { margin-top: 10px; display: flex; align-items: center; gap: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🏦 계좌 관리 시스템</h2>
+
+    <div class="input-box">
+        <h3>🆕 새 계좌 등록</h3>
+        <input type="text" id="addName" placeholder="계좌 별명 (예: 용돈통장)">
+        <input type="text" id="addNum" placeholder="계좌번호 (예: 110-123)">
+        <input type="text" id="addOwner" placeholder="예금주 성함">
+        <input type="number" id="addBalance" placeholder="초기 잔액">
+        <button onclick="createNewAccount()">계좌 등록하기</button>
+    </div>
+
+    <hr>
+
+    <h3>📋 등록된 계좌 목록</h3>
+    <div id="accountListArea">
+    </div>
+	
+</div>
+<script>
+    // [기능 1] 서버에서 전체 목록을 가져와서 화면에 그리기
+    async function refreshList() {
+        try {
+            const response = await fetch('/list');
+            const accounts = await response.json();
+            
+            const listArea = document.getElementById('accountListArea');
+            listArea.innerHTML = ''; 
+
+            accounts.forEach(acc => {
+                const div = document.createElement('div');
+                div.className = 'account-item';
+                div.innerHTML = `
+                    <div><strong>[${acc.accountName}]</strong></div>
+                    <div>계좌번호: ${acc.accountNumber}</div>
+                    <div>예금주: ${acc.owner}</div>
+                    <div>잔액: <span class="balance">${acc.balance.toLocaleString()}원</span></div>
+                    
+                    <div class="action-area">
+                        <input type="number" id="amt_${acc.accountNumber}" placeholder="금액" style="width: 100px;">
+                        <button class="btn-deposit" onclick="handleMoney('${acc.accountNumber}', 'deposit')">입금</button>
+                        <button class="btn-withdraw" onclick="handleMoney('${acc.accountNumber}', 'withdraw')">출금</button>
+						<button class="btn-edit" onclick="editAccountName('${acc.accountNumber}')">이름수정</button>
+						<button class="btn-delete" onclick="deleteAccount('${acc.accountNumber}')">삭제</button>
+                    </div>
+                `;
+                listArea.appendChild(div);
+            });
+        } catch (e) {
+            console.error("데이터 로드 실패:", e);
+        }
+    }
+
+    // [기능 2] 입금 및 출금 처리
+    async function handleMoney(accNum, type) {
+        const amountInput = document.getElementById('amt_' + accNum);
+        const amount = amountInput.value;
+
+        if(!amount || amount <= 0) {
+            alert("금액을 정확히 입력해주세요.");
+            return;
+        }
+
+        const response = await fetch(`/update?num=${accNum}&amount=${amount}&type=${type}`);
+        const result = await response.text();
+
+        alert(result);
+        refreshList(); 
+    }
+
+    // [기능 3] 서버에 새 계좌 등록 요청하기 (버튼 onclick과 이름 일치!)
+    async function createNewAccount() {
+        const name = document.getElementById('addName').value;
+        const num = document.getElementById('addNum').value;
+        const owner = document.getElementById('addOwner').value;
+        const balance = document.getElementById('addBalance').value;
+
+        if(!name || !num || !owner || !balance) {
+            alert("모든 빈칸을 채워주세요!");
+            return;
+        }
+
+        const query = `accName=${encodeURIComponent(name)}&accNum=${encodeURIComponent(num)}&owner=${encodeURIComponent(owner)}&balance=${balance}`;
+        const response = await fetch('/add?' + query);
+        const message = await response.text();
+
+        alert(message);
+        refreshList(); 
+
+        // 입력창 초기화
+        document.getElementById('addName').value = '';
+        document.getElementById('addNum').value = '';
+        document.getElementById('addOwner').value = '';
+        document.getElementById('addBalance').value = '';
+    }
+	async function editAccountName(num) {
+	    const newName = prompt("새로운 계좌 별명을 입력하세요:");
+	    if (!newName) return;
+
+	    const response = await fetch(`/editName?num=${num}&newName=${encodeURIComponent(newName)}`);
+	    const msg = await response.text();
+	    alert(msg);
+	    refreshList();
+	}
+
+	// 계좌 삭제
+	async function deleteAccount(num) {
+	    if (!confirm("정말로 이 계좌를 삭제하시겠습니까?")) return;
+
+	    const response = await fetch(`/delete?num=${num}`);
+	    const msg = await response.text();
+	    alert(msg);
+	    refreshList();
+	}
+    // 초기 실행: 페이지가 열리자마자 목록을 가져옴
+    refreshList();
+</script>
+</body>
+</html>
